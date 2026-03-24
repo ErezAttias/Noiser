@@ -1,6 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
-import { DEFAULT_COLORS, DEFAULT_CHAOS, DEFAULT_GRAIN } from "../lib/constants";
+import {
+  DEFAULT_COLORS,
+  DEFAULT_CHAOS,
+  DEFAULT_GRAIN,
+  DEFAULT_FORMAT,
+  FORMATS,
+  PREVIEW_BASE_WIDTH,
+} from "../lib/constants";
+import type { FormatKey } from "../lib/constants";
 import { exportPng } from "../lib/exportPng";
 import { generateSeed } from "../lib/random";
 import type { AppState } from "../lib/types";
@@ -9,6 +17,7 @@ import ColorList from "../components/ColorList";
 import PreviewCanvas from "../components/PreviewCanvas";
 import SliderControl from "../components/SliderControl";
 import ActionButtons from "../components/ActionButtons";
+import FormatSelector from "../components/FormatSelector";
 import ImportUrlBox from "../components/ImportUrlBox";
 
 function App() {
@@ -22,6 +31,13 @@ function App() {
     const urlState = parseStateFromUrl();
     return { ...defaults, ...urlState };
   });
+
+  const [format, setFormat] = useState<FormatKey>(DEFAULT_FORMAT);
+
+  const currentFormat = FORMATS[format];
+
+  const previewWidth = PREVIEW_BASE_WIDTH;
+  const previewHeight = Math.round(previewWidth / currentFormat.aspectRatio);
 
   const debouncedSync = useRef(createDebouncedUrlSync(300)).current;
 
@@ -38,7 +54,14 @@ function App() {
   };
 
   const handleDownload = () => {
-    exportPng(state.colors, state.chaos, state.grain, state.seed);
+    exportPng(
+      state.colors,
+      state.chaos,
+      state.grain,
+      state.seed,
+      currentFormat.width,
+      currentFormat.height,
+    );
   };
 
   useEffect(() => {
@@ -53,6 +76,11 @@ function App() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  const cssAspectRatio = useMemo(
+    () => `${currentFormat.width} / ${currentFormat.height}`,
+    [currentFormat],
+  );
+
   return (
     <div className="app">
       <PreviewCanvas
@@ -60,6 +88,9 @@ function App() {
         chaos={state.chaos}
         grain={state.grain}
         seed={state.seed}
+        width={previewWidth}
+        height={previewHeight}
+        aspectRatio={cssAspectRatio}
       />
       <div className="controls">
         <h1 className="app-title">Noiser</h1>
@@ -80,6 +111,7 @@ function App() {
           step={0.01}
           onChange={(grain) => setState((prev) => ({ ...prev, grain }))}
         />
+        <FormatSelector value={format} onChange={setFormat} />
         <ActionButtons onAnother={handleAnother} onDownload={handleDownload} />
         <ImportUrlBox onImport={(imported) => setState((prev) => ({ ...prev, ...imported }))} />
         <div className="seed-display">Seed: {state.seed}</div>

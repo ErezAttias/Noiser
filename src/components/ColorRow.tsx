@@ -36,22 +36,24 @@ function ColorRow({ color, index, onChange, onRemove, canRemove }: ColorRowProps
 
   return (
     <div className="color-row">
-      <div
-        className="color-swatch"
-        style={{ backgroundColor: color }}
-      />
+      <div className="color-picker-wrap">
+        <div
+          className="color-swatch"
+          style={{ backgroundColor: color }}
+        />
+        <input
+          className="color-picker"
+          type="color"
+          value={color}
+          onChange={handlePickerChange}
+        />
+      </div>
       <input
         className="color-hex-input"
         type="text"
         value={hexInput}
         onChange={handleHexChange}
         onBlur={handleHexBlur}
-      />
-      <input
-        className="color-picker"
-        type="color"
-        value={color}
-        onChange={handlePickerChange}
       />
       <button
         className="color-remove-btn"

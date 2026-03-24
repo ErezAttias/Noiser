@@ -9,6 +9,7 @@ type PreviewCanvasProps = {
   seed: number;
   width?: number;
   height?: number;
+  aspectRatio?: string;
 };
 
 function PreviewCanvas({
@@ -18,6 +19,7 @@ function PreviewCanvas({
   seed,
   width = CANVAS_PREVIEW_WIDTH,
   height = CANVAS_PREVIEW_HEIGHT,
+  aspectRatio,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -36,7 +38,10 @@ function PreviewCanvas({
   }, [colorsKey, chaos, grain, seed, width, height]);
 
   return (
-    <div className="canvas-preview">
+    <div
+      className="canvas-preview"
+      style={aspectRatio ? { aspectRatio } : undefined}
+    >
       <canvas
         ref={canvasRef}
         className="preview-canvas"
