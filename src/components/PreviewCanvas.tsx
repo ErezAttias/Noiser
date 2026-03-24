@@ -30,11 +30,22 @@ function PreviewCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const dpr = window.devicePixelRatio || 1;
+    const physicalWidth = Math.round(width * dpr);
+    const physicalHeight = Math.round(height * dpr);
+
+    // Size the canvas bitmap to match physical display pixels.
+    canvas.width = physicalWidth;
+    canvas.height = physicalHeight;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Disable image smoothing so putImageData pixels stay crisp.
+    ctx.imageSmoothingEnabled = false;
+
     const parsedColors: string[] = JSON.parse(colorsKey);
-    renderTexture(ctx, width, height, parsedColors, chaos, grain, seed);
+    renderTexture(ctx, physicalWidth, physicalHeight, parsedColors, chaos, grain, seed);
   }, [colorsKey, chaos, grain, seed, width, height]);
 
   return (
@@ -45,9 +56,6 @@ function PreviewCanvas({
       <canvas
         ref={canvasRef}
         className="preview-canvas"
-        width={width}
-        height={height}
-        style={{ maxWidth: "100%" }}
       />
     </div>
   );

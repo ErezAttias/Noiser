@@ -10,7 +10,7 @@ import {
 } from "../lib/constants";
 import type { FormatKey } from "../lib/constants";
 import { exportPng } from "../lib/exportPng";
-import { generateSeed } from "../lib/random";
+import { generateSeed, generateRandomConfig } from "../lib/random";
 import type { AppState } from "../lib/types";
 import { parseStateFromUrl, createDebouncedUrlSync } from "../lib/urlState";
 import ColorList from "../components/ColorList";
@@ -51,6 +51,10 @@ function App() {
 
   const handleAnother = () => {
     setState((prev) => ({ ...prev, seed: generateSeed() }));
+  };
+
+  const handleRandom = () => {
+    setState(generateRandomConfig());
   };
 
   const handleDownload = () => {
@@ -112,7 +116,7 @@ function App() {
           onChange={(grain) => setState((prev) => ({ ...prev, grain }))}
         />
         <FormatSelector value={format} onChange={setFormat} />
-        <ActionButtons onAnother={handleAnother} onDownload={handleDownload} />
+        <ActionButtons onAnother={handleAnother} onRandom={handleRandom} onDownload={handleDownload} />
         <ImportUrlBox onImport={(imported) => setState((prev) => ({ ...prev, ...imported }))} />
         <div className="seed-display">Seed: {state.seed}</div>
         <div className="keyboard-hint">Press <kbd>Space</kbd> to regenerate</div>

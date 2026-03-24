@@ -13,7 +13,13 @@ export function exportPng(
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d')!;
-  renderTexture(ctx, width, height, colors, chaos, grain, seed);
+
+  // Use sub-pixel grain sampling so grain character matches the preview's
+  // DPR-dense pixel grid, without relying on canvas downsampling.
+  const dpr = window.devicePixelRatio || 1;
+  const grainDensity = dpr > 1 ? Math.round(dpr * 1.5) : 1;
+  renderTexture(ctx, width, height, colors, chaos, grain, seed, grainDensity);
+
   canvas.toBlob((blob) => {
     if (!blob) return;
     const url = URL.createObjectURL(blob);

@@ -68,6 +68,18 @@ function oklabToLinearRgb(
   ];
 }
 
+/**
+ * Fast integer hash for deterministic per-pixel grain.
+ * Returns a float in [0, 1). Uses Murmur3-style mixing for
+ * high-quality distribution across adjacent coordinates.
+ */
+function pixelHash(x: number, y: number, seed: number): number {
+  let h = (x * 374761393 + y * 668265263 + seed) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) | 0;
+  h = Math.imul(h ^ (h >>> 16), -1262866561) | 0;
+  return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
+}
+
 export function renderTexture(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -76,6 +88,7 @@ export function renderTexture(
   chaos: number,
   grain: number,
   seed: number,
+  grainDensity: number = 1,
 ): void {
   const rng = createRng(seed);
   const imageData = ctx.createImageData(width, height);
@@ -181,15 +194,28 @@ export function renderTexture(
   const noiseBaseY2 = rng() * 1000;
 
   // ── Pre-generate grain values ───────────────────────────────────────
+  // grainDensity controls sub-pixel grain resolution:
+  //   1  → white noise via sequential RNG (preview path, unchanged)
+  //   >1 → hash-based sub-pixel sampling (export path, resolution-independent)
+  const gd = Math.max(1, Math.round(grainDensity));
+  const useHashGrain = grain > 0 && gd > 1;
   const pixelCount = width * height;
   let grainValues: Float32Array | null = null;
   let grainValues2: Float32Array | null = null;
+  let grainHashSeed1 = 0;
+  let grainHashSeed2 = 0;
   if (grain > 0) {
-    grainValues = new Float32Array(pixelCount);
-    grainValues2 = new Float32Array(pixelCount);
-    for (let i = 0; i < pixelCount; i++) {
-      grainValues[i] = rng();
-      grainValues2[i] = rng();
+    if (useHashGrain) {
+      // Derive deterministic hash seeds from the main RNG.
+      grainHashSeed1 = (rng() * 2 ** 31) | 0;
+      grainHashSeed2 = (rng() * 2 ** 31) | 0;
+    } else {
+      grainValues = new Float32Array(pixelCount);
+      grainValues2 = new Float32Array(pixelCount);
+      for (let i = 0; i < pixelCount; i++) {
+        grainValues[i] = rng();
+        grainValues2[i] = rng();
+      }
     }
   }
 
@@ -288,23 +314,51 @@ export function renderTexture(
       cb /= tw;
 
       // ── Luminance-aware grain in Oklab ──────────────────────────
-      if (grainValues !== null && grainValues2 !== null) {
-        const gi = y * width + x;
+      if (grain > 0) {
         // Scale grain with resolution so it looks identical at any render size.
-        // Reference height 1365 — at lower res grain gets proportionally coarser
-        // so we reduce intensity; at higher res we allow more.
         const resScale = Math.min(1, Math.sqrt(refSize / 1365));
         const grainStrength = grain * 0.35 * resScale;
 
         // Parabolic luminance factor: peaks at mid-tones, gentle in shadows/highlights
         const lumFactor = 0.35 + 0.65 * (4 * cL * (1 - cL));
 
+        let gv1: number;
+        let gv2: number;
+
+        if (useHashGrain) {
+          // Sub-pixel sampling with variance-preserving normalization.
+          // Sum gd×gd centered sub-samples and divide by sqrt(N) to
+          // maintain the same RMS intensity as white noise, while the
+          // averaging shifts the distribution toward Gaussian — producing
+          // the refined, film-like character that the preview gets from
+          // its DPR-dense pixel grid being perceived by the eye.
+          const gdSq = gd * gd;
+          const sqrtN = Math.sqrt(gdSq);
+          let s1 = 0;
+          let s2 = 0;
+          for (let sy = 0; sy < gd; sy++) {
+            for (let sx = 0; sx < gd; sx++) {
+              s1 += pixelHash(x * gd + sx, y * gd + sy, grainHashSeed1) - 0.5;
+              s2 += pixelHash(x * gd + sx, y * gd + sy, grainHashSeed2) - 0.5;
+            }
+          }
+          // Variance-preserving: stddev stays σ, but distribution is
+          // bell-shaped (fewer extreme speckles, more uniform texture).
+          // Clamp to prevent rare extreme tails.
+          gv1 = Math.max(0, Math.min(1, s1 / sqrtN + 0.5));
+          gv2 = Math.max(0, Math.min(1, s2 / sqrtN + 0.5));
+        } else {
+          const gi = y * width + x;
+          gv1 = grainValues![gi];
+          gv2 = grainValues2![gi];
+        }
+
         // Luminance grain — perceptible texture
-        cL += (grainValues[gi] - 0.5) * grainStrength * lumFactor;
+        cL += (gv1 - 0.5) * grainStrength * lumFactor;
 
         // Chroma grain for material integration (not just monochrome noise)
         const chromaGrain =
-          (grainValues2[gi] - 0.5) * grainStrength * 0.25 * lumFactor;
+          (gv2 - 0.5) * grainStrength * 0.25 * lumFactor;
         ca += chromaGrain;
         cb += chromaGrain;
       }
