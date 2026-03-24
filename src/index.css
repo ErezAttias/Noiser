@@ -60,6 +60,12 @@ body {
   padding: 48px 40px;
 }
 
+@media (max-width: 900px) {
+  #root {
+    padding: 24px 16px;
+  }
+}
+
 ::selection {
   background: var(--accent);
   color: var(--bg-deep);

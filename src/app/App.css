@@ -370,8 +370,8 @@
 @media (max-width: 900px) {
   .app {
     grid-template-columns: 1fr;
-    max-width: 540px;
-    gap: 24px;
+    max-width: 100%;
+    gap: 20px;
   }
 
   .canvas-preview {
@@ -380,5 +380,15 @@
 
   .controls {
     position: static;
+    padding: 20px 16px;
+  }
+
+  .action-buttons {
+    margin-top: 8px;
+  }
+
+  .btn-another,
+  .btn-download {
+    padding: 12px 16px;
   }
 }
