@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { isValidHex, normalizeHex } from "../lib/color";
 
 type ColorRowProps = {
@@ -11,27 +11,66 @@ type ColorRowProps = {
 
 function ColorRow({ color, index, onChange, onRemove, canRemove }: ColorRowProps) {
   const [hexInput, setHexInput] = useState(color);
+  // Local swatch color for immediate visual feedback during debounced picking
+  const [localColor, setLocalColor] = useState(color);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingColorRef = useRef<string | null>(null);
+  // Stable refs so the debounce callback always uses current props
+  const onChangeRef = useRef(onChange);
+  const indexRef = useRef(index);
+  onChangeRef.current = onChange;
+  indexRef.current = index;
 
   useEffect(() => {
     setHexInput(color);
+    setLocalColor(color);
   }, [color]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const handleHexChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setHexInput(e.target.value);
   };
 
   const handleHexBlur = () => {
+    // Flush any pending picker debounce
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     if (isValidHex(hexInput)) {
-      onChange(index, normalizeHex(hexInput));
+      const normalized = normalizeHex(hexInput);
+      setLocalColor(normalized);
+      onChange(index, normalized);
     } else {
       setHexInput(color);
+      setLocalColor(color);
     }
   };
 
   const handlePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newColor = normalizeHex(e.target.value);
+    // Immediate local feedback (swatch + hex text) — no rerender cost
     setHexInput(newColor);
-    onChange(index, newColor);
+    setLocalColor(newColor);
+    pendingColorRef.current = newColor;
+
+    // Debounce the expensive parent state update that triggers canvas re-render.
+    // On iPhone the native color picker fires onChange at ~60fps; each parent
+    // update triggers a full-canvas renderTexture() at 3× DPR which freezes
+    // the main thread. 120ms keeps the preview responsive without perceptible lag.
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      if (pendingColorRef.current) {
+        onChangeRef.current(indexRef.current, pendingColorRef.current);
+        pendingColorRef.current = null;
+      }
+    }, 120);
   };
 
   return (
@@ -39,12 +78,12 @@ function ColorRow({ color, index, onChange, onRemove, canRemove }: ColorRowProps
       <div className="color-picker-wrap">
         <div
           className="color-swatch"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor: localColor }}
         />
         <input
           className="color-picker"
           type="color"
-          value={color}
+          value={localColor}
           onChange={handlePickerChange}
         />
       </div>

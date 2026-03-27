@@ -27,25 +27,34 @@ function PreviewCanvas({
   const colorsKey = JSON.stringify(colors);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    // Defer rendering to the next animation frame so rapid state changes
+    // (e.g. dragging a color picker or slider) coalesce into a single render.
+    // Each new effect run cancels the previous pending frame, so only the
+    // latest state is rendered — preventing the main thread from being
+    // blocked by a backlog of expensive renderTexture() calls.
+    const raf = requestAnimationFrame(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    const physicalWidth = Math.round(width * dpr);
-    const physicalHeight = Math.round(height * dpr);
+      const dpr = window.devicePixelRatio || 1;
+      const physicalWidth = Math.round(width * dpr);
+      const physicalHeight = Math.round(height * dpr);
 
-    // Size the canvas bitmap to match physical display pixels.
-    canvas.width = physicalWidth;
-    canvas.height = physicalHeight;
+      // Size the canvas bitmap to match physical display pixels.
+      canvas.width = physicalWidth;
+      canvas.height = physicalHeight;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    // Disable image smoothing so putImageData pixels stay crisp.
-    ctx.imageSmoothingEnabled = false;
+      // Disable image smoothing so putImageData pixels stay crisp.
+      ctx.imageSmoothingEnabled = false;
 
-    const parsedColors: string[] = JSON.parse(colorsKey);
-    renderTexture(ctx, physicalWidth, physicalHeight, parsedColors, chaos, grain, seed);
+      const parsedColors: string[] = JSON.parse(colorsKey);
+      renderTexture(ctx, physicalWidth, physicalHeight, parsedColors, chaos, grain, seed);
+    });
+
+    return () => cancelAnimationFrame(raf);
   }, [colorsKey, chaos, grain, seed, width, height]);
 
   return (
